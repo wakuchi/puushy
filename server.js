@@ -1,5 +1,4 @@
 const express = require('express');
-const multer = require('multer');
 const shortid = require('shortid');
 const cors = require('cors');
 const fs = require('fs');
@@ -47,55 +46,106 @@ function saveMetadata(data) {
     fs.writeFileSync(METADATA_FILE, JSON.stringify(data, null, 2));
 }
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, UPLOADS_DIR);
-    },
-    filename: (req, file, cb) => {
-        const id = shortid.generate();
-        cb(null, id + path.extname(file.originalname));
-    }
-});
-
-const upload = multer({ 
-    storage,
-    limits: { fileSize: 500 * 1024 * 1024 }
-});
-
 app.post('/upload', (req, res) => {
-    console.log('Upload start, size:', req.headers['content-length']);
+    const contentLength = parseInt(req.headers['content-length'], 10);
+    console.log('Upload start, size:', contentLength);
     
-    upload.single('file')(req, res, (err) => {
-        console.log('Multer done, err:', err ? err.message : 'none');
+    const contentType = req.headers['content-type'] || '';
+    const boundaryMatch = contentType.match(/boundary=(.+)/);
+    
+    if (!boundaryMatch) {
+        return res.status(400).json({ error: 'Invalid content type' });
+    }
+    
+    const boundary = boundaryMatch[1];
+    const fileId = shortid.generate();
+    let filename = 'file';
+    let writeStream = null;
+    let receivedBytes = 0;
+    let fileStart = false;
+    let headerBuffer = Buffer.alloc(0);
+    
+    req.on('data', (chunk) => {
+        receivedBytes += chunk.length;
         
-        if (err) {
-            return res.status(400).json({ error: err.message });
+        if (!fileStart) {
+            headerBuffer = Buffer.concat([headerBuffer, chunk]);
+            const headerStr = headerBuffer.toString('utf8');
+            const filenameMatch = headerStr.match(/filename="([^"]+)"/);
+            
+            if (filenameMatch) {
+                filename = filenameMatch[1];
+                const ext = path.extname(filename);
+                const saveName = fileId + ext;
+                const filepath = path.join(UPLOADS_DIR, saveName);
+                
+                console.log('Writing file:', filename, '->', saveName);
+                writeStream = fs.createWriteStream(filepath);
+                fileStart = true;
+                
+                const headerEndIndex = headerBuffer.indexOf('\r\n\r\n');
+                if (headerEndIndex !== -1) {
+                    const remaining = headerBuffer.slice(headerEndIndex + 4);
+                    if (remaining.length > 0) {
+                        writeStream.write(remaining);
+                    }
+                }
+            }
+        } else if (writeStream) {
+            const boundaryIndex = chunk.indexOf(Buffer.from('--' + boundary));
+            if (boundaryIndex !== -1) {
+                writeStream.write(chunk.slice(0, boundaryIndex));
+                writeStream.end();
+                writeStream = null;
+                
+                console.log('File complete, size:', receivedBytes);
+                
+                const ext = path.extname(filename);
+                const saveName = fileId + ext;
+                
+                try {
+                    const metadata = loadMetadata();
+                    metadata.files.push({
+                        id: fileId,
+                        originalName: filename,
+                        filename: saveName,
+                        downloads: 0,
+                        createdAt: Date.now()
+                    });
+                    saveMetadata(metadata);
+                    
+                    console.log('Upload success:', filename);
+                    
+                    res.json({
+                        id: fileId,
+                        filename: filename,
+                        link: `/f/${fileId}`
+                    });
+                } catch (err) {
+                    console.error('Save error:', err.message);
+                    res.json({
+                        id: fileId,
+                        filename: filename,
+                        link: `/f/${fileId}`
+                    });
+                }
+            } else {
+                writeStream.write(chunk);
+            }
         }
-        
-        if (!req.file) {
-            return res.status(400).json({ error: 'No file uploaded' });
+    });
+    
+    req.on('error', (err) => {
+        console.error('Request error:', err.message);
+        if (writeStream) {
+            writeStream.end();
         }
-
-        const id = path.basename(req.file.filename, path.extname(req.file.filename));
-        
-        const metadata = loadMetadata();
-        metadata.files.push({
-            id,
-            originalName: req.file.originalname,
-            filename: req.file.filename,
-            downloads: 0,
-            createdAt: Date.now()
-        });
-
-        saveMetadata(metadata);
-        
-        console.log('Upload success:', req.file.originalname);
-        
-        res.json({
-            id,
-            filename: req.file.originalname,
-            link: `/f/${id}`
-        });
+    });
+    
+    req.on('end', () => {
+        if (writeStream && !writeStream.writableEnded) {
+            writeStream.end();
+        }
     });
 });
 
