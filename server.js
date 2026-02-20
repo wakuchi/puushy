@@ -14,18 +14,28 @@ const METADATA_FILE = path.join(DATA_DIR, 'metadata.json');
 const FILE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
 app.use(cors());
+app.use(express.json({ limit: '100mb' }));
 app.use(express.static('public'));
 
-if (!fs.existsSync(UPLOADS_DIR)) {
-    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-}
+try {
+    if (!fs.existsSync(UPLOADS_DIR)) {
+        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+        console.log('Created uploads directory');
+    }
 
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+    if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        console.log('Created data directory');
+    }
 
-if (!fs.existsSync(METADATA_FILE)) {
-    fs.writeFileSync(METADATA_FILE, JSON.stringify({ files: [] }));
+    if (!fs.existsSync(METADATA_FILE)) {
+        fs.writeFileSync(METADATA_FILE, JSON.stringify({ files: [] }));
+        console.log('Created metadata.json');
+    }
+    
+    console.log('Directories initialized');
+} catch (err) {
+    console.error('Failed to initialize directories:', err.message);
 }
 
 function loadMetadata() {
@@ -37,7 +47,12 @@ function loadMetadata() {
 }
 
 function saveMetadata(data) {
-    fs.writeFileSync(METADATA_FILE, JSON.stringify(data, null, 2));
+    try {
+        fs.writeFileSync(METADATA_FILE, JSON.stringify(data, null, 2));
+    } catch (err) {
+        console.error('Failed to save metadata:', err.message);
+        throw err;
+    }
 }
 
 const storage = multer.diskStorage({
@@ -57,33 +72,55 @@ const upload = multer({
 
 app.post('/upload', (req, res) => {
     upload.single('file')(req, res, (err) => {
+        console.log('Upload request received, err:', err);
+        
         if (err) {
-            console.error('Upload error:', err.message);
+            console.error('Multer error:', err.message);
             return res.status(400).json({ error: err.message });
         }
         
         if (!req.file) {
+            console.error('No file in request');
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
-        const id = path.basename(req.file.filename, path.extname(req.file.filename));
-        const metadata = loadMetadata();
+        try {
+            const id = path.basename(req.file.filename, path.extname(req.file.filename));
+            console.log('File saved:', req.file.filename, 'id:', id);
+            
+            const metadata = loadMetadata();
+            console.log('Metadata loaded, current files:', metadata.files.length);
 
-        metadata.files.push({
-            id,
-            originalName: req.file.originalname,
-            filename: req.file.filename,
-            downloads: 0,
-            createdAt: Date.now()
-        });
+            metadata.files.push({
+                id,
+                originalName: req.file.originalname,
+                filename: req.file.filename,
+                downloads: 0,
+                createdAt: Date.now()
+            });
 
-        saveMetadata(metadata);
+            console.log('Saving metadata...');
+            saveMetadata(metadata);
+            console.log('Metadata saved successfully');
 
-        res.json({
-            id,
-            filename: req.file.originalname,
-            link: `/f/${id}`
-        });
+            console.log('Sending response...');
+            return res.json({
+                id,
+                filename: req.file.originalname,
+                link: `/f/${id}`
+            });
+        } catch (saveErr) {
+            console.error('Save error:', saveErr.message);
+            // Still return success - file was saved even if metadata failed
+            // This prevents the hang
+            const id = path.basename(req.file.filename, path.extname(req.file.filename));
+            return res.json({
+                id,
+                filename: req.file.originalname,
+                link: `/f/${id}`,
+                warning: 'File saved but metadata failed'
+            });
+        }
     });
 });
 
