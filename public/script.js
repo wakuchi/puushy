@@ -7,6 +7,8 @@ const shareLink = document.getElementById('share-link');
 const copyBtn = document.getElementById('copy-btn');
 const downloadCount = document.getElementById('download-count');
 const downloadPageLink = document.getElementById('download-page-link');
+const progressBar = document.getElementById('progress-bar');
+const progressText = document.getElementById('progress-text');
 
 dropZone.addEventListener('click', () => fileInput.click());
 
@@ -34,42 +36,72 @@ fileInput.addEventListener('change', () => {
     }
 });
 
-async function uploadFile(file) {
+function uploadFile(file) {
     dropZone.classList.add('hidden');
     uploadStatus.classList.remove('hidden');
+    progressBar.style.width = '0%';
+    progressText.textContent = '0%';
 
     const formData = new FormData();
     formData.append('file', file);
 
-    try {
-        const res = await fetch('/upload', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ error: 'Upload failed' }));
-            throw new Error(err.error || 'Upload failed');
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            progressBar.style.width = percent + '%';
+            progressText.textContent = percent + '%';
         }
+    });
 
-        const data = await res.json();
-        
-        const fullLink = `${window.location.origin}${data.link}`;
-        
-        filename.textContent = data.filename;
-        shareLink.value = fullLink;
-        downloadCount.textContent = '0';
-        downloadPageLink.href = data.link;
+    xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+                const data = JSON.parse(xhr.responseText);
+                const fullLink = `${window.location.origin}${data.link}`;
+                
+                filename.textContent = data.filename;
+                shareLink.value = fullLink;
+                downloadCount.textContent = '0';
+                downloadPageLink.href = data.link;
 
-        uploadStatus.classList.add('hidden');
-        result.classList.remove('hidden');
-        
-        pollDownloadCount(data.id);
-    } catch (e) {
-        alert('Upload failed: ' + e.message);
+                uploadStatus.classList.add('hidden');
+                result.classList.remove('hidden');
+                
+                pollDownloadCount(data.id);
+            } catch {
+                alert('Upload failed: Invalid response');
+                dropZone.classList.remove('hidden');
+                uploadStatus.classList.add('hidden');
+            }
+        } else {
+            let errMsg = 'Upload failed';
+            try {
+                const err = JSON.parse(xhr.responseText);
+                errMsg = err.error || errMsg;
+            } catch {}
+            alert('Upload failed: ' + errMsg);
+            dropZone.classList.remove('hidden');
+            uploadStatus.classList.add('hidden');
+        }
+    });
+
+    xhr.addEventListener('error', () => {
+        alert('Upload failed: Network error');
         dropZone.classList.remove('hidden');
         uploadStatus.classList.add('hidden');
-    }
+    });
+
+    xhr.addEventListener('timeout', () => {
+        alert('Upload failed: Timeout');
+        dropZone.classList.remove('hidden');
+        uploadStatus.classList.add('hidden');
+    });
+
+    xhr.open('POST', '/upload');
+    xhr.timeout = 120000;
+    xhr.send(formData);
 }
 
 copyBtn.addEventListener('click', async () => {
