@@ -1,11 +1,10 @@
 const express = require('express');
-const multer = require('multer');
 const shortid = require('shortid');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const { Readable } = require('stream');
-const Busboy = require('busboy').Busboy;
+const formidable = require('formidable');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -63,88 +62,38 @@ function saveMetadata(data) {
     }
 }
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        console.log('DiskStorage: destination called for', file.originalname);
-        cb(null, UPLOADS_DIR);
-    },
-    filename: (req, file, cb) => {
-        const id = shortid.generate();
-        const filename = id + path.extname(file.originalname);
-        console.log('DiskStorage: filename will be', filename);
-        cb(null, filename);
-    }
-});
-
-const upload = multer({ 
-    storage,
-    limits: { 
-        fileSize: 500 * 1024 * 1024,
-        fields: 10,
-        parts: 20
-    },
-    fileFilter: (req, file, cb) => {
-        console.log('File filter - originalname:', file.originalname, 'mimetype:', file.mimetype);
-        cb(null, true);
-    }
-});
-
 app.post('/upload', (req, res) => {
     console.log('Upload request, content-length:', req.headers['content-length']);
     
-    const busboy = new Busboy({ headers: req.headers });
-    let fileId = null;
-    let originalName = null;
-    let writeStream = null;
-    let fileSize = 0;
-    
-    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
-        console.log('Busboy: file event for', filename);
-        fileId = shortid.generate();
-        originalName = filename;
-        const ext = path.extname(filename);
-        const savedFilename = fileId + ext;
-        const filepath = path.join(UPLOADS_DIR, savedFilename);
-        
-        console.log('Busboy: writing to', filepath);
-        
-        writeStream = fs.createWriteStream(filepath);
-        
-        file.on('data', (chunk) => {
-            fileSize += chunk.length;
-            console.log('Busboy: received', fileSize, 'bytes');
-        });
-        
-        file.on('end', () => {
-            console.log('Busboy: file data ended, size:', fileSize);
-        });
-        
-        file.on('error', (err) => {
-            console.error('Busboy: file stream error:', err.message);
-        });
-        
-        file.pipe(writeStream);
-        
-        writeStream.on('close', () => {
-            console.log('Busboy: writeStream closed');
-        });
-        
-        writeStream.on('error', (err) => {
-            console.error('Busboy: writeStream error:', err.message);
-        });
+    const form = formidable({
+        uploadDir: UPLOADS_DIR,
+        keepExtensions: true,
+        maxFileSize: 500 * 1024 * 1024,
+        filename: (name, ext, part) => {
+            const fileId = shortid.generate();
+            return fileId + ext;
+        }
     });
     
-    busboy.on('finish', () => {
-        console.log('Busboy: finish event fired, file size:', fileSize);
+    form.parse(req, (err, fields, files) => {
+        if (err) {
+            console.error('Formidable error:', err.message);
+            return res.status(400).json({ error: err.message });
+        }
         
-        if (!fileId || fileSize === 0) {
+        const file = files.file;
+        if (!file || (Array.isArray(file) && file.length === 0)) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
         
+        const uploadedFile = Array.isArray(file) ? file[0] : file;
+        console.log('File uploaded:', uploadedFile.originalFilename || uploadedFile.name, 'size:', uploadedFile.size);
+        
+        const originalName = uploadedFile.originalFilename || uploadedFile.name;
+        const savedFilename = path.basename(uploadedFile.filepath);
+        const fileId = path.basename(savedFilename, path.extname(savedFilename));
+        
         try {
-            const ext = path.extname(originalName);
-            const savedFilename = fileId + ext;
-            
             const metadata = loadMetadata();
             metadata.files.push({
                 id: fileId,
@@ -155,15 +104,15 @@ app.post('/upload', (req, res) => {
             });
             
             saveMetadata(metadata);
-            console.log('Upload complete:', originalName, '->', savedFilename);
+            console.log('Upload complete:', originalName);
             
             return res.json({
                 id: fileId,
                 filename: originalName,
                 link: `/f/${fileId}`
             });
-        } catch (err) {
-            console.error('Save error:', err.message);
+        } catch (saveErr) {
+            console.error('Save error:', saveErr.message);
             return res.json({
                 id: fileId,
                 filename: originalName,
@@ -171,15 +120,6 @@ app.post('/upload', (req, res) => {
             });
         }
     });
-    
-    busboy.on('error', (err) => {
-        console.error('Busboy error:', err.message);
-        if (!res.headersSent) {
-            res.status(500).json({ error: err.message });
-        }
-    });
-    
-    req.pipe(busboy);
 });
 
 app.get('/f/:id', (req, res) => {
