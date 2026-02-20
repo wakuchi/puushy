@@ -13,8 +13,8 @@ const METADATA_FILE = path.join(DATA_DIR, 'metadata.json');
 const FILE_EXPIRY_MS = 60 * 60 * 1000;
 
 app.use(cors());
-app.use(express.json({ limit: '500mb' }));
-app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+app.use(express.json({ limit: '15gb' }));
+app.use(express.urlencoded({ extended: true, limit: '15gb' }));
 app.use(express.static('public'));
 
 const server = require('http').createServer(app);
