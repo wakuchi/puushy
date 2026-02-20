@@ -4,6 +4,8 @@ const shortid = require('shortid');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { Readable } = require('stream');
+const Busboy = require('busboy');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -88,64 +90,79 @@ const upload = multer({
 });
 
 app.post('/upload', (req, res) => {
-    console.log('Upload request received, content-length:', req.headers['content-length']);
-    console.log('Upload folder:', UPLOADS_DIR);
+    console.log('Upload request, content-length:', req.headers['content-length']);
     
-    const timeout = setTimeout(() => {
-        console.error('Upload timeout after 120s - response sent');
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Upload timeout - file too large or connection slow' });
-        }
-    }, 120000);
+    const busboy = new Busboy({ headers: req.headers });
+    let fileId = null;
+    let originalName = null;
+    let writeStream = null;
+    let fileSize = 0;
     
-    upload.single('file')(req, res, (err) => {
-        clearTimeout(timeout);
+    busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+        console.log('Busboy: file event for', filename);
+        fileId = shortid.generate();
+        originalName = filename;
+        const ext = path.extname(filename);
+        const savedFilename = fileId + ext;
+        const filepath = path.join(UPLOADS_DIR, savedFilename);
         
-        console.log('Multer finished, err:', err ? err.message : 'none', 'file:', req.file ? req.file.filename : 'none');
+        console.log('Busboy: writing to', filepath);
         
-        if (err) {
-            console.error('Multer error:', err.message);
-            return res.status(400).json({ error: err.message });
-        }
+        writeStream = fs.createWriteStream(filepath);
         
-        if (!req.file) {
-            console.error('No file in request');
+        file.on('data', (chunk) => {
+            fileSize += chunk.length;
+        });
+        
+        file.pipe(writeStream);
+    });
+    
+    busboy.on('finish', () => {
+        console.log('Busboy: finished, file size:', fileSize);
+        
+        if (!fileId || fileSize === 0) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
-
-        console.log('File size on disk:', req.file.size);
-
+        
         try {
-            const id = path.basename(req.file.filename, path.extname(req.file.filename));
+            const ext = path.extname(originalName);
+            const savedFilename = fileId + ext;
             
             const metadata = loadMetadata();
-
             metadata.files.push({
-                id,
-                originalName: req.file.originalname,
-                filename: req.file.filename,
+                id: fileId,
+                originalName: originalName,
+                filename: savedFilename,
                 downloads: 0,
                 createdAt: Date.now()
             });
-
+            
             saveMetadata(metadata);
-            console.log('Sending success response for', req.file.originalname);
-
+            console.log('Upload complete:', originalName, '->', savedFilename);
+            
             return res.json({
-                id,
-                filename: req.file.originalname,
-                link: `/f/${id}`
+                id: fileId,
+                filename: originalName,
+                link: `/f/${fileId}`
             });
-        } catch (saveErr) {
-            console.error('Save error:', saveErr.message);
-            const id = path.basename(req.file.filename, path.extname(req.file.filename));
+        } catch (err) {
+            console.error('Save error:', err.message);
             return res.json({
-                id,
-                filename: req.file.originalname,
-                link: `/f/${id}`
+                id: fileId,
+                filename: originalName,
+                link: `/f/${fileId}`
             });
         }
     });
+    
+    busboy.on('error', (err) => {
+        console.error('Busboy error:', err.message);
+        if (!res.headersSent) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+    
+    req.pipe(busboy);
 });
 
 app.get('/f/:id', (req, res) => {
