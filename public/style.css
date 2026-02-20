@@ -1,0 +1,284 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: hidden;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: 
+        radial-gradient(circle at 20% 80%, rgba(120, 119, 255, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.1) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.container {
+    text-align: center;
+    padding: 2rem;
+    width: 100%;
+    max-width: 500px;
+    position: relative;
+    z-index: 1;
+}
+
+h1 {
+    margin-bottom: 2rem;
+    font-weight: 300;
+    font-size: 2.5rem;
+    background: linear-gradient(90deg, #fff, #a5b4fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: fadeInDown 0.6s ease;
+}
+
+@keyframes fadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.drop-zone {
+    border: 2px dashed rgba(165, 180, 252, 0.3);
+    border-radius: 20px;
+    padding: 4rem 2rem;
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    background: rgba(22, 33, 62, 0.6);
+    backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+    animation: fadeIn 0.8s ease 0.2s both;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.drop-zone::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: radial-gradient(circle, rgba(165, 180, 252, 0.3) 0%, transparent 70%);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.6s ease, height 0.6s ease;
+}
+
+.drop-zone:hover::before,
+.drop-zone.dragover::before {
+    width: 300px;
+    height: 300px;
+}
+
+.drop-zone:hover,
+.drop-zone.dragover {
+    border-color: rgba(165, 180, 252, 0.8);
+    background: rgba(31, 52, 100, 0.7);
+    transform: scale(1.02);
+    box-shadow: 
+        0 20px 60px rgba(0, 0, 0, 0.3),
+        0 0 40px rgba(165, 180, 252, 0.1),
+        inset 0 0 60px rgba(165, 180, 252, 0.05);
+}
+
+.drop-zone p {
+    font-size: 1.3rem;
+    margin-bottom: 0.5rem;
+    position: relative;
+    z-index: 1;
+}
+
+.drop-zone .icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    display: block;
+    position: relative;
+    z-index: 1;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+.sub-text {
+    font-size: 0.9rem !important;
+    color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#upload-status {
+    margin-top: 2rem;
+    color: #a5b4fc;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+#upload-status .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(165, 180, 252, 0.2);
+    border-top-color: #a5b4fc;
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+#result {
+    margin-top: 2rem;
+    animation: slideUp 0.5s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.filename {
+    font-size: 1.3rem;
+    margin-bottom: 1rem;
+    word-break: break-all;
+    color: #a5b4fc;
+    font-weight: 500;
+}
+
+.link-box {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    background: rgba(22, 33, 62, 0.6);
+    padding: 0.5rem;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+}
+
+.link-box input {
+    flex: 1;
+    padding: 0.75rem;
+    border: 1px solid rgba(165, 180, 252, 0.2);
+    border-radius: 8px;
+    background: rgba(15, 12, 41, 0.5);
+    color: #eee;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.link-box input:focus {
+    border-color: rgba(165, 180, 252, 0.6);
+}
+
+.link-box button {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.link-box button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.link-box button.copied {
+    background: linear-gradient(135deg, #11998e, #38ef7d);
+}
+
+.downloads {
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+}
+
+.btn {
+    display: inline-block;
+    padding: 0.85rem 2.5rem;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-weight: 500;
+    font-size: 1rem;
+}
+
+.btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 15px 40px rgba(102, 126, 234, 0.4);
+}
+
+.download-box {
+    background: rgba(22, 33, 62, 0.7);
+    backdrop-filter: blur(10px);
+    padding: 2.5rem;
+    border-radius: 20px;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(165, 180, 252, 0.1);
+    animation: slideUp 0.5s ease;
+}
+
+.download-box .filename {
+    font-size: 1.5rem;
+}
+
+.expires {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.9rem;
+}
+
+.success-icon {
+    color: #38ef7d;
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}

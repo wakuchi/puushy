@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Download File | wakuchi's puushy</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Download File</h1>
+        <div class="download-box">
+            <p class="filename" id="filename">Loading...</p>
+            <p class="downloads">Downloads: <span id="download-count">-</span></p>
+            <a id="download-btn" href="#" class="btn">Download</a>
+        </div>
+        <p class="expires">Expires in: <span id="expires-in">-</span></p>
+    </div>
+    <script>
+        const pathParts = window.location.pathname.split('/');
+        const fileId = pathParts[pathParts.length - 1];
+
+        async function loadFileInfo() {
+            try {
+                const res = await fetch(`/api/info/${fileId}`);
+                if (!res.ok) {
+                    document.getElementById('filename').textContent = 'File not found';
+                    return;
+                }
+                const data = await res.json();
+                document.getElementById('filename').textContent = data.filename;
+                document.getElementById('download-count').textContent = data.downloads;
+                document.getElementById('download-btn').href = `/api/download/${fileId}`;
+                
+                updateExpires(data.expiresAt);
+                setInterval(() => updateExpires(data.expiresAt), 1000);
+            } catch (e) {
+                document.getElementById('filename').textContent = 'Error loading file';
+            }
+        }
+
+        function updateExpires(expiresAt) {
+            const remaining = expiresAt - Date.now();
+            if (remaining <= 0) {
+                document.getElementById('expires-in').textContent = 'Expired';
+                document.getElementById('download-btn').style.display = 'none';
+            } else {
+                const mins = Math.floor(remaining / 60000);
+                const secs = Math.floor((remaining % 60000) / 1000);
+                document.getElementById('expires-in').textContent = `${mins}m ${secs}s`;
+            }
+        }
+
+        loadFileInfo();
+    </script>
+</body>
+</html>
