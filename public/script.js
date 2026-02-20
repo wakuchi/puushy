@@ -41,14 +41,21 @@ async function uploadFile(file) {
     const formData = new FormData();
     formData.append('file', file);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     try {
         const res = await fetch('/upload', {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: controller.signal
         });
 
+        clearTimeout(timeoutId);
+
         if (!res.ok) {
-            throw new Error('Upload failed');
+            const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+            throw new Error(err.error || 'Upload failed');
         }
 
         const data = await res.json();
@@ -65,6 +72,7 @@ async function uploadFile(file) {
         
         pollDownloadCount(data.id);
     } catch (e) {
+        clearTimeout(timeoutId);
         alert('Upload failed: ' + e.message);
         dropZone.classList.remove('hidden');
         uploadStatus.classList.add('hidden');

@@ -50,30 +50,40 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({ storage });
+const upload = multer({ 
+    storage,
+    limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
+});
 
-app.post('/upload', upload.single('file'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded' });
-    }
+app.post('/upload', (req, res) => {
+    upload.single('file')(req, res, (err) => {
+        if (err) {
+            console.error('Upload error:', err.message);
+            return res.status(400).json({ error: err.message });
+        }
+        
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded' });
+        }
 
-    const id = path.basename(req.file.filename, path.extname(req.file.filename));
-    const metadata = loadMetadata();
+        const id = path.basename(req.file.filename, path.extname(req.file.filename));
+        const metadata = loadMetadata();
 
-    metadata.files.push({
-        id,
-        originalName: req.file.originalname,
-        filename: req.file.filename,
-        downloads: 0,
-        createdAt: Date.now()
-    });
+        metadata.files.push({
+            id,
+            originalName: req.file.originalname,
+            filename: req.file.filename,
+            downloads: 0,
+            createdAt: Date.now()
+        });
 
-    saveMetadata(metadata);
+        saveMetadata(metadata);
 
-    res.json({
-        id,
-        filename: req.file.originalname,
-        link: `/f/${id}`
+        res.json({
+            id,
+            filename: req.file.originalname,
+            link: `/f/${id}`
+        });
     });
 });
 
@@ -153,5 +163,5 @@ function cleanupExpiredFiles() {
 setInterval(cleanupExpiredFiles, 60 * 1000);
 
 app.listen(PORT, () => {
-    console.log(`Puush clone running on http://localhost:${PORT}`);
+    console.log(`wakuchi's puushy running on http://localhost:${PORT}`);
 });

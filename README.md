@@ -79,6 +79,28 @@ PORT=8080 npm start
     └── metadata.json  # File metadata
 ```
 
+## Troubleshooting
+
+### Upload stuck / hangs
+
+If uploads get stuck, fix directory permissions:
+
+```bash
+chmod 755 uploads data
+```
+
+Or run as root temporarily to test:
+```bash
+sudo node server.js
+```
+
+### Still not working
+
+Check if uploads directory exists and is writable:
+```bash
+ls -la uploads data
+```
+
 ## License
 
 MIT
