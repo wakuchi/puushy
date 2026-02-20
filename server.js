@@ -162,6 +162,6 @@ function cleanupExpiredFiles() {
 
 setInterval(cleanupExpiredFiles, 60 * 1000);
 
-app.listen(PORT, () => {
-    console.log(`wakuchi's puushy running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`wakuchi's puushy running on http://0.0.0.0:${PORT}`);
 });
