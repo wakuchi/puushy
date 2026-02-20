@@ -17,6 +17,9 @@ app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.static('public'));
 
+const server = require('http').createServer(app);
+server.timeout = 120000; // 2 minute timeout
+
 try {
     if (!fs.existsSync(UPLOADS_DIR)) {
         fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -37,6 +40,8 @@ try {
 } catch (err) {
     console.error('Failed to initialize directories:', err.message);
 }
+
+process.stdout.setMaxListeners(0);
 
 function loadMetadata() {
     try {
@@ -71,8 +76,18 @@ const upload = multer({
 });
 
 app.post('/upload', (req, res) => {
+    const timeout = setTimeout(() => {
+        console.error('Upload timeout - forcing response');
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Upload timeout' });
+        }
+    }, 60000);
+    
     upload.single('file')(req, res, (err) => {
-        console.log('Upload request received, err:', err);
+        clearTimeout(timeout);
+        
+        console.log('Upload callback, err:', err ? err.message : 'none');
+        process.stdout.flush();
         
         if (err) {
             console.error('Multer error:', err.message);
@@ -86,10 +101,9 @@ app.post('/upload', (req, res) => {
 
         try {
             const id = path.basename(req.file.filename, path.extname(req.file.filename));
-            console.log('File saved:', req.file.filename, 'id:', id);
+            console.log('File received:', req.file.originalname, 'size:', req.file.size);
             
             const metadata = loadMetadata();
-            console.log('Metadata loaded, current files:', metadata.files.length);
 
             metadata.files.push({
                 id,
@@ -99,11 +113,9 @@ app.post('/upload', (req, res) => {
                 createdAt: Date.now()
             });
 
-            console.log('Saving metadata...');
             saveMetadata(metadata);
-            console.log('Metadata saved successfully');
+            console.log('Sending success response');
 
-            console.log('Sending response...');
             return res.json({
                 id,
                 filename: req.file.originalname,
@@ -111,14 +123,11 @@ app.post('/upload', (req, res) => {
             });
         } catch (saveErr) {
             console.error('Save error:', saveErr.message);
-            // Still return success - file was saved even if metadata failed
-            // This prevents the hang
             const id = path.basename(req.file.filename, path.extname(req.file.filename));
             return res.json({
                 id,
                 filename: req.file.originalname,
-                link: `/f/${id}`,
-                warning: 'File saved but metadata failed'
+                link: `/f/${id}`
             });
         }
     });
@@ -199,6 +208,6 @@ function cleanupExpiredFiles() {
 
 setInterval(cleanupExpiredFiles, 60 * 1000);
 
-app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`wakuchi's puushy running on http://0.0.0.0:${PORT}`);
 });
