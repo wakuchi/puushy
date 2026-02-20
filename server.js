@@ -63,11 +63,14 @@ function saveMetadata(data) {
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
+        console.log('DiskStorage: destination called for', file.originalname);
         cb(null, UPLOADS_DIR);
     },
     filename: (req, file, cb) => {
         const id = shortid.generate();
-        cb(null, id + path.extname(file.originalname));
+        const filename = id + path.extname(file.originalname);
+        console.log('DiskStorage: filename will be', filename);
+        cb(null, filename);
     }
 });
 
@@ -86,6 +89,7 @@ const upload = multer({
 
 app.post('/upload', (req, res) => {
     console.log('Upload request received, content-length:', req.headers['content-length']);
+    console.log('Upload folder:', UPLOADS_DIR);
     
     const timeout = setTimeout(() => {
         console.error('Upload timeout after 120s - response sent');
