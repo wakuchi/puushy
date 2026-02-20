@@ -1,9 +1,9 @@
 const express = require('express');
+const multer = require('multer');
 const shortid = require('shortid');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const formidable = require('formidable').IncomingForm;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const DATA_DIR = path.join(__dirname, 'data');
 const METADATA_FILE = path.join(DATA_DIR, 'metadata.json');
-const FILE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+const FILE_EXPIRY_MS = 60 * 60 * 1000;
 
 app.use(cors());
 app.use(express.json({ limit: '500mb' }));
@@ -19,30 +19,21 @@ app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 app.use(express.static('public'));
 
 const server = require('http').createServer(app);
-server.timeout = 120000; // 2 minute timeout
+server.timeout = 600000;
 
 try {
     if (!fs.existsSync(UPLOADS_DIR)) {
         fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-        console.log('Created uploads directory');
     }
-
     if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
-        console.log('Created data directory');
     }
-
     if (!fs.existsSync(METADATA_FILE)) {
         fs.writeFileSync(METADATA_FILE, JSON.stringify({ files: [] }));
-        console.log('Created metadata.json');
     }
-    
-    console.log('Directories initialized');
 } catch (err) {
-    console.error('Failed to initialize directories:', err.message);
+    console.error('Init error:', err.message);
 }
-
-process.stdout.setMaxListeners(0);
 
 function loadMetadata() {
     try {
@@ -53,71 +44,58 @@ function loadMetadata() {
 }
 
 function saveMetadata(data) {
-    try {
-        fs.writeFileSync(METADATA_FILE, JSON.stringify(data, null, 2));
-    } catch (err) {
-        console.error('Failed to save metadata:', err.message);
-        throw err;
-    }
+    fs.writeFileSync(METADATA_FILE, JSON.stringify(data, null, 2));
 }
 
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, UPLOADS_DIR);
+    },
+    filename: (req, file, cb) => {
+        const id = shortid.generate();
+        cb(null, id + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({ 
+    storage,
+    limits: { fileSize: 500 * 1024 * 1024 }
+});
+
 app.post('/upload', (req, res) => {
-    console.log('Upload request, content-length:', req.headers['content-length']);
+    console.log('Upload start, size:', req.headers['content-length']);
     
-    const form = formidable({
-        uploadDir: UPLOADS_DIR,
-        keepExtensions: true,
-        maxFileSize: 500 * 1024 * 1024,
-        filename: (name, ext, part) => {
-            const fileId = shortid.generate();
-            return fileId + ext;
-        }
-    });
-    
-    form.parse(req, (err, fields, files) => {
+    upload.single('file')(req, res, (err) => {
+        console.log('Multer done, err:', err ? err.message : 'none');
+        
         if (err) {
-            console.error('Formidable error:', err.message);
             return res.status(400).json({ error: err.message });
         }
         
-        const file = files.file;
-        if (!file || (Array.isArray(file) && file.length === 0)) {
+        if (!req.file) {
             return res.status(400).json({ error: 'No file uploaded' });
         }
+
+        const id = path.basename(req.file.filename, path.extname(req.file.filename));
         
-        const uploadedFile = Array.isArray(file) ? file[0] : file;
-        console.log('File uploaded:', uploadedFile.originalFilename || uploadedFile.name, 'size:', uploadedFile.size);
+        const metadata = loadMetadata();
+        metadata.files.push({
+            id,
+            originalName: req.file.originalname,
+            filename: req.file.filename,
+            downloads: 0,
+            createdAt: Date.now()
+        });
+
+        saveMetadata(metadata);
         
-        const originalName = uploadedFile.originalFilename || uploadedFile.name;
-        const savedFilename = path.basename(uploadedFile.filepath);
-        const fileId = path.basename(savedFilename, path.extname(savedFilename));
+        console.log('Upload success:', req.file.originalname);
         
-        try {
-            const metadata = loadMetadata();
-            metadata.files.push({
-                id: fileId,
-                originalName: originalName,
-                filename: savedFilename,
-                downloads: 0,
-                createdAt: Date.now()
-            });
-            
-            saveMetadata(metadata);
-            console.log('Upload complete:', originalName);
-            
-            return res.json({
-                id: fileId,
-                filename: originalName,
-                link: `/f/${fileId}`
-            });
-        } catch (saveErr) {
-            console.error('Save error:', saveErr.message);
-            return res.json({
-                id: fileId,
-                filename: originalName,
-                link: `/f/${fileId}`
-            });
-        }
+        res.json({
+            id,
+            filename: req.file.originalname,
+            link: `/f/${id}`
+        });
     });
 });
 
