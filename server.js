@@ -14,7 +14,8 @@ const METADATA_FILE = path.join(DATA_DIR, 'metadata.json');
 const FILE_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 
 app.use(cors());
-app.use(express.json({ limit: '100mb' }));
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 app.use(express.static('public'));
 
 const server = require('http').createServer(app);
@@ -72,22 +73,29 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage,
-    limits: { fileSize: 100 * 1024 * 1024 } // 100MB limit
+    limits: { 
+        fileSize: 500 * 1024 * 1024, // 500MB limit
+        fields: 10,
+        parts: 20
+    }
 });
 
 app.post('/upload', (req, res) => {
+    console.log('Upload endpoint hit at', new Date().toISOString());
+    console.log('Headers:', JSON.stringify(req.headers));
+    process.stdout.flush();
+    
     const timeout = setTimeout(() => {
         console.error('Upload timeout - forcing response');
         if (!res.headersSent) {
             res.status(500).json({ error: 'Upload timeout' });
         }
-    }, 60000);
+    }, 120000);
     
     upload.single('file')(req, res, (err) => {
         clearTimeout(timeout);
         
-        console.log('Upload callback, err:', err ? err.message : 'none');
-        process.stdout.flush();
+        console.log('Multer callback, err:', err ? err.message : 'none');
         
         if (err) {
             console.error('Multer error:', err.message);
@@ -131,6 +139,10 @@ app.post('/upload', (req, res) => {
             });
         }
     });
+});
+
+app.get('/api/test', (req, res) => {
+    res.json({ status: 'ok', time: Date.now() });
 });
 
 app.get('/f/:id', (req, res) => {
