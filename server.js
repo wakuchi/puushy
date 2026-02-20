@@ -74,28 +74,30 @@ const storage = multer.diskStorage({
 const upload = multer({ 
     storage,
     limits: { 
-        fileSize: 500 * 1024 * 1024, // 500MB limit
+        fileSize: 500 * 1024 * 1024,
         fields: 10,
         parts: 20
+    },
+    fileFilter: (req, file, cb) => {
+        console.log('File filter - originalname:', file.originalname, 'mimetype:', file.mimetype);
+        cb(null, true);
     }
 });
 
 app.post('/upload', (req, res) => {
-    console.log('Upload endpoint hit at', new Date().toISOString());
-    console.log('Headers:', JSON.stringify(req.headers));
-    process.stdout.flush();
+    console.log('Upload request received, content-length:', req.headers['content-length']);
     
     const timeout = setTimeout(() => {
-        console.error('Upload timeout - forcing response');
+        console.error('Upload timeout after 120s - response sent');
         if (!res.headersSent) {
-            res.status(500).json({ error: 'Upload timeout' });
+            res.status(500).json({ error: 'Upload timeout - file too large or connection slow' });
         }
     }, 120000);
     
     upload.single('file')(req, res, (err) => {
         clearTimeout(timeout);
         
-        console.log('Multer callback, err:', err ? err.message : 'none');
+        console.log('Multer finished, err:', err ? err.message : 'none', 'file:', req.file ? req.file.filename : 'none');
         
         if (err) {
             console.error('Multer error:', err.message);
@@ -107,9 +109,10 @@ app.post('/upload', (req, res) => {
             return res.status(400).json({ error: 'No file uploaded' });
         }
 
+        console.log('File size on disk:', req.file.size);
+
         try {
             const id = path.basename(req.file.filename, path.extname(req.file.filename));
-            console.log('File received:', req.file.originalname, 'size:', req.file.size);
             
             const metadata = loadMetadata();
 
@@ -122,7 +125,7 @@ app.post('/upload', (req, res) => {
             });
 
             saveMetadata(metadata);
-            console.log('Sending success response');
+            console.log('Sending success response for', req.file.originalname);
 
             return res.json({
                 id,
@@ -139,10 +142,6 @@ app.post('/upload', (req, res) => {
             });
         }
     });
-});
-
-app.get('/api/test', (req, res) => {
-    res.json({ status: 'ok', time: Date.now() });
 });
 
 app.get('/f/:id', (req, res) => {
