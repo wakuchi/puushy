@@ -5,7 +5,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const { Readable } = require('stream');
-const { Busboy } = require('busboy');
+const Busboy = require('busboy').Busboy;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
