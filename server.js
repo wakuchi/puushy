@@ -112,13 +112,30 @@ app.post('/upload', (req, res) => {
         
         file.on('data', (chunk) => {
             fileSize += chunk.length;
+            console.log('Busboy: received', fileSize, 'bytes');
+        });
+        
+        file.on('end', () => {
+            console.log('Busboy: file data ended, size:', fileSize);
+        });
+        
+        file.on('error', (err) => {
+            console.error('Busboy: file stream error:', err.message);
         });
         
         file.pipe(writeStream);
+        
+        writeStream.on('close', () => {
+            console.log('Busboy: writeStream closed');
+        });
+        
+        writeStream.on('error', (err) => {
+            console.error('Busboy: writeStream error:', err.message);
+        });
     });
     
     busboy.on('finish', () => {
-        console.log('Busboy: finished, file size:', fileSize);
+        console.log('Busboy: finish event fired, file size:', fileSize);
         
         if (!fileId || fileSize === 0) {
             return res.status(400).json({ error: 'No file uploaded' });
