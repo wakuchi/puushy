@@ -3,8 +3,7 @@ const shortid = require('shortid');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { Readable } = require('stream');
-const formidable = require('formidable');
+const formidable = require('formidable').IncomingForm;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
