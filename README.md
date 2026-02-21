@@ -1,6 +1,8 @@
 # wakuchi's puushy
 
-A simple file sharing service for your VPS. Upload files via drag & drop, get a shareable link, and track download counts. Files auto-delete after 1 hour.
+A simple file sharing service for your VPS/homeserver. Made to share files with your friends, files are stored unencrypted so dont share anything personal!
+
+Upload files via drag & drop, get a shareable link with media preview, and track download counts. Files auto-delete after 1 hour.
 
 ## Features
 
