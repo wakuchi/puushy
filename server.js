@@ -168,13 +168,78 @@ app.get('/api/info/:id', (req, res) => {
         return res.status(404).json({ error: 'File not found' });
     }
 
+    const ext = path.extname(file.filename).toLowerCase();
+    const viewableTypes = {
+        '.jpg': 'image',
+        '.jpeg': 'image',
+        '.png': 'image',
+        '.gif': 'image',
+        '.webp': 'image',
+        '.svg': 'image',
+        '.bmp': 'image',
+        '.ico': 'image',
+        '.mp4': 'video',
+        '.webm': 'video',
+        '.ogg': 'video',
+        '.avi': 'video',
+        '.mov': 'video',
+        '.mp3': 'audio',
+        '.wav': 'audio',
+        '.ogg': 'audio',
+        '.aac': 'audio',
+        '.flac': 'audio'
+    };
+
     res.json({
         id: file.id,
         filename: file.originalName,
         downloads: file.downloads,
         createdAt: file.createdAt,
-        expiresAt: file.createdAt + FILE_EXPIRY_MS
+        expiresAt: file.createdAt + FILE_EXPIRY_MS,
+        type: viewableTypes[ext] || null
     });
+});
+
+app.get('/api/file/:id', (req, res) => {
+    const metadata = loadMetadata();
+    const file = metadata.files.find(f => f.id === req.params.id);
+
+    if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+    }
+
+    const filePath = path.join(UPLOADS_DIR, file.filename);
+
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File not found' });
+    }
+
+    const ext = path.extname(file.filename).toLowerCase();
+    const mimeTypes = {
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.png': 'image/png',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml',
+        '.bmp': 'image/bmp',
+        '.ico': 'image/x-icon',
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.ogg': 'video/ogg',
+        '.avi': 'video/x-msvideo',
+        '.mov': 'video/quicktime',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+        '.ogg': 'audio/ogg',
+        '.aac': 'audio/aac',
+        '.flac': 'audio/flac'
+    };
+
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', 'inline');
+    res.sendFile(filePath);
 });
 
 app.get('/api/download/:id', (req, res) => {

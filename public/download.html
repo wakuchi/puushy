@@ -11,6 +11,7 @@
         <h1>Download File</h1>
         <div class="download-box">
             <p class="filename" id="filename">Loading...</p>
+            <div id="preview-container"></div>
             <p class="downloads">Downloads: <span id="download-count">-</span></p>
             <a id="download-btn" href="#" class="btn">Download</a>
         </div>
@@ -31,6 +32,17 @@
                 document.getElementById('filename').textContent = data.filename;
                 document.getElementById('download-count').textContent = data.downloads;
                 document.getElementById('download-btn').href = `/api/download/${fileId}`;
+                
+                if (data.type) {
+                    const container = document.getElementById('preview-container');
+                    if (data.type === 'image') {
+                        container.innerHTML = `<img src="/api/file/${fileId}" alt="${data.filename}" class="media-preview">`;
+                    } else if (data.type === 'video') {
+                        container.innerHTML = `<video controls class="media-preview"><source src="/api/file/${fileId}" type="video/mp4">Your browser does not support video.</video>`;
+                    } else if (data.type === 'audio') {
+                        container.innerHTML = `<audio controls class="media-preview"><source src="/api/file/${fileId}" type="audio/mpeg">Your browser does not support audio.</audio>`;
+                    }
+                }
                 
                 updateExpires(data.expiresAt);
                 setInterval(() => updateExpires(data.expiresAt), 1000);
